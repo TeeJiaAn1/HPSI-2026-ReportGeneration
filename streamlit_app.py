@@ -210,6 +210,10 @@ uploaded_file = st.file_uploader("Upload DartFish CSV", type="csv")
 if uploaded_file:
     raw_df = pd.read_csv(uploaded_file)
     rdf = analyze_match(raw_df, p_name, o_name)
+else:
+    rdf = None
+    st.info("Please upload your DartFish CSV.")
+
 def compute_error_stats(rdf):
     """
     Returns a dict of DataFrames / series useful for error reporting.
@@ -739,34 +743,33 @@ def compute_error_stats(rdf):
             ax.step(x_steps, p_steps, where='post', color=col_player, linewidth=2, label=p_name)
             ax.step(x_steps, o_steps, where='post', color=col_opponent, linewidth=2, label=o_name)
             
-            # Numerical Score Labels
-            # Numerical Score Labels with Unforced Error Highlighting
-            for _, row in s_df.iterrows():
-                x_pos = row['End_Rel']
+                    # Numerical Score Labels with Unforced Error Highlighting
+        for _, row in s_df.iterrows():
+            x_pos = row['End_Rel']
+
             # New score after this rally
-                if row['Winner'] == 'Player':
-                    score_val = int(row['P_Score_Before'] + 1)
-                else:
-                    score_val = int(row['O_Score_Before'] + 1)
+            if row['Winner'] == 'Player':
+                score_val = int(row['P_Score_Before'] + 1)
+            else:
+                score_val = int(row['O_Score_Before'] + 1)
 
             # Default colour: gold for player point, navy for opponent point
             base_color = col_player if row['Winner'] == 'Player' else col_opponent
             marker_color = base_color
 
             # If the rally ended with an Unforced Error, colour the marker red
-            # (You can make it more precise: red only if the error side == the loser, using Error_Side logic.)
             if isinstance(row.get('Error_Type', None), str) and row['Error_Type'] == 'Unforced Error':
                 marker_color = 'red'
 
             ax.text(
-            x_pos,
-        score_val + 0.6,
-        str(score_val),
-        color=marker_color,
-        fontsize=7,
-        fontweight='bold',
-        ha='center'
-    )
+                x_pos,
+                score_val + 0.6,
+                str(score_val),
+                color=marker_color,
+                fontsize=7,
+                fontweight='bold',
+                ha='center'
+            )
 
             import matplotlib.ticker as ticker
             ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{int(x//60):02d}:{int(x%60):02d}"))
@@ -855,5 +858,3 @@ def compute_error_stats(rdf):
             file_name=filename,
             mime="application/pdf"
         )
-        else:
-            st.info("Please upload your DartFish CSV.")
