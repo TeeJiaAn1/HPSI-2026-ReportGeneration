@@ -150,41 +150,42 @@ def analyze_match(df, p_name, o_name):
             score_diff = abs(current_p_score - current_o_score)
             is_pressure = (score_diff <= 1) or (current_p_score >= 20) or (current_o_score >= 20)
 
-       # Pull error-related info from the End Rally row (end_row)
-error_type = end_row.get('Error Type', None)
-landing_pos = end_row.get('Landing Position', None)
-landing_zone = end_row.get('Landing Zone', None)
-player_pos = end_row.get('Player Position', None)
-player_zone = end_row.get('Player Zone', None)
-racket_face = end_row.get('Racket Face', None)
-shot_profile = end_row.get('Shot Court Profile', None)
-shot_type = end_row.get('Shot Type', None)
+            # --- pull error metadata from End Rally row ---
+            error_type = end_row.get('Error Type', None)
+            landing_pos = end_row.get('Landing Position', None)
+            landing_zone = end_row.get('Landing Zone', None)
+            player_pos = end_row.get('Player Position', None)
+            player_zone = end_row.get('Player Zone', None)
+            racket_face = end_row.get('Racket Face', None)
+            shot_profile = end_row.get('Shot Court Profile', None)
+            shot_type = end_row.get('Shot Type', None)
 
-rallies.append({
-    "Set": current_set_label,
-    "Rally_Num": len([r for r in rallies if r['Set'] == current_set_label]) + 1,
-    "Server": server_side,
-    "Winner": winner,
-    "Duration": duration,
-    "Start_Pos": df.iloc[i]['Position'],
-    "End_Pos": end_row['Position'] + 2000,
-    "Cat": "Short" if duration < 7 else ("Mid" if duration <= 15 else "Long"),
-    "Is_Pressure": is_pressure,
-    "P_Score_Before": current_p_score,
-    "O_Score_Before": current_o_score,
-    # --- error metadata ---
-    "Error_Type": error_type,
-    "Landing_Position": landing_pos,
-    "Landing_Zone": landing_zone,
-    "Player_Position": player_pos,
-    "Player_Zone": player_zone,
-    "Racket_Face": racket_face,
-    "Shot_Profile": shot_profile,
-    "Shot_Type": shot_type
-})
+            rallies.append({
+                "Set": current_set_label,
+                "Rally_Num": len([r for r in rallies if r['Set'] == current_set_label]) + 1,
+                "Server": server_side,
+                "Winner": winner,
+                "Duration": duration,
+                "Start_Pos": df.iloc[i]['Position'],
+                "End_Pos": end_row['Position'] + 2000,
+                "Cat": "Short" if duration < 7 else ("Mid" if duration <= 15 else "Long"),
+                "Is_Pressure": is_pressure,
+                "P_Score_Before": current_p_score,
+                "O_Score_Before": current_o_score,
+                "Error_Type": error_type,
+                "Landing_Position": landing_pos,
+                "Landing_Zone": landing_zone,
+                "Player_Position": player_pos,
+                "Player_Zone": player_zone,
+                "Racket_Face": racket_face,
+                "Shot_Profile": shot_profile,
+                "Shot_Type": shot_type
+            })
             
-    if winner == "Player": current_p_score += 1
-        else: current_o_score += 1
+            if winner == "Player":
+                current_p_score += 1
+            else:
+                current_o_score += 1
     
     rdf = pd.DataFrame(rallies)
     rdf['Rest'] = (rdf.groupby('Set')['Start_Pos'].shift(-1) - rdf['End_Pos']) / 1000
