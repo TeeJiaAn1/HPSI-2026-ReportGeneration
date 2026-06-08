@@ -855,5 +855,5 @@ def compute_error_stats(rdf):
             file_name=filename,
             mime="application/pdf"
         )
-else:
-    st.info("Please upload your DartFish CSV.")
+        else:
+            st.info("Please upload your DartFish CSV.")
