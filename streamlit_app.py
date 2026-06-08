@@ -150,19 +150,38 @@ def analyze_match(df, p_name, o_name):
             score_diff = abs(current_p_score - current_o_score)
             is_pressure = (score_diff <= 1) or (current_p_score >= 20) or (current_o_score >= 20)
 
-            rallies.append({
-                "Set": current_set_label,
-                "Rally_Num": len([r for r in rallies if r['Set'] == current_set_label]) + 1,
-                "Server": server_side,
-                "Winner": winner,
-                "Duration": duration,
-                "Start_Pos": df.iloc[i]['Position'],
-                "End_Pos": end_row['Position'] + 2000,
-                "Cat": "Short" if duration < 7 else ("Mid" if duration <= 15 else "Long"),
-                "Is_Pressure": is_pressure,
-                "P_Score_Before": current_p_score,
-                "O_Score_Before": current_o_score
-            })
+       # Pull error-related info from the End Rally row (end_row)
+error_type = end_row.get('Error Type', None)
+landing_pos = end_row.get('Landing Position', None)
+landing_zone = end_row.get('Landing Zone', None)
+player_pos = end_row.get('Player Position', None)
+player_zone = end_row.get('Player Zone', None)
+racket_face = end_row.get('Racket Face', None)
+shot_profile = end_row.get('Shot Court Profile', None)
+shot_type = end_row.get('Shot Type', None)
+
+rallies.append({
+    "Set": current_set_label,
+    "Rally_Num": len([r for r in rallies if r['Set'] == current_set_label]) + 1,
+    "Server": server_side,
+    "Winner": winner,
+    "Duration": duration,
+    "Start_Pos": df.iloc[i]['Position'],
+    "End_Pos": end_row['Position'] + 2000,
+    "Cat": "Short" if duration < 7 else ("Mid" if duration <= 15 else "Long"),
+    "Is_Pressure": is_pressure,
+    "P_Score_Before": current_p_score,
+    "O_Score_Before": current_o_score,
+    # --- error metadata ---
+    "Error_Type": error_type,
+    "Landing_Position": landing_pos,
+    "Landing_Zone": landing_zone,
+    "Player_Position": player_pos,
+    "Player_Zone": player_zone,
+    "Racket_Face": racket_face,
+    "Shot_Profile": shot_profile,
+    "Shot_Type": shot_type
+})
             
             if winner == "Player": current_p_score += 1
             else: current_o_score += 1
@@ -190,6 +209,117 @@ uploaded_file = st.file_uploader("Upload DartFish CSV", type="csv")
 if uploaded_file:
     raw_df = pd.read_csv(uploaded_file)
     rdf = analyze_match(raw_df, p_name, o_name)
+def compute_error_stats(rdf):
+    """
+    Returns a dict of DataFrames / series useful for error reporting.
+    Assumes rdf has Error_Type, Shot_Type, Landing_Zone, Player_Zone, etc.
+    """
+    # Only rallies where the point ended with an error (forced or unforced)
+    err_df = rdf[rdf['Error_Type'].notna()].copy()
+
+    # 1) Basic counts by side and error type
+    #    Convention: if Winner == 'Player', then Opponent made the error, and vice versa.
+    def side_committed_error(row):
+        if row['Winner'] == 'Player':
+            return 'Opponent'
+        elif row['Winner'] == 'Opponent':
+            return 'Player'
+        else:
+            return None
+
+    err_df['Error_Side'] = err_df.apply(side_committed_error, axis=1)
+
+    # Total unforced / forced by side
+    err_counts = (
+        err_df
+        .groupby(['Error_Side', 'Error_Type'])
+        .size()
+        .reset_index(name='Count')
+    )
+
+    # 2) By shot type (per side)
+    shot_type_counts = (
+        err_df
+        .groupby(['Error_Side', 'Error_Type', 'Shot_Type'])
+        .size()
+        .reset_index(name='Count')
+    )
+
+    # 3) By player zone / landing zone (per side)
+    zone_counts = (
+        err_df
+        .groupby(['Error_Side', 'Error_Type', 'Player_Zone'])
+        .size()
+        .reset_index(name='Count')
+    )
+
+    landing_zone_counts = (
+        err_df
+        .groupby(['Error_Side', 'Error_Type', 'Landing_Zone'])
+        .size()
+        .reset_index(name='Count')
+    )
+
+    # 4) Critical moments:
+    #    Define critical as score diff <= 1 or either >= 18 (you can tweak).
+    err_df['Score_Diff'] = (err_df['P_Score_Before'] - err_df['O_Score_Before']).abs()
+    err_df['Is_Critical'] = (err_df['Score_Diff'] <= 1) | \
+                            (err_df['P_Score_Before'] >= 18) | \
+                            (err_df['O_Score_Before'] >= 18)
+
+    crit_counts = (
+        err_df[err_df['Is_Critical']]
+        .groupby(['Error_Side', 'Error_Type'])
+        .size()
+        .reset_index(name='Count')
+    )
+
+    # 5) Consecutive unforced errors by side
+    #    We walk rally by rally within each set and side.
+    streak_rows = []
+    for side in ['Player', 'Opponent']:
+        side_df = err_df.sort_values(['Set', 'Rally_Num']).copy()
+        side_df['Is_Unforced_By_Side'] = (side_df['Error_Side'] == side) & \
+                                         (side_df['Error_Type'] == 'Unforced Error')
+
+        current_streak = 0
+        last_set = None
+
+        for _, row in side_df.iterrows():
+            if row['Set'] != last_set:
+                current_streak = 0
+                last_set = row['Set']
+
+            if row['Is_Unforced_By_Side']:
+                current_streak += 1
+                streak_rows.append({
+                    'Side': side,
+                    'Set': row['Set'],
+                    'Rally_Num': row['Rally_Num'],
+                    'Streak_Length': current_streak
+                })
+            else:
+                current_streak = 0
+
+    streak_df = pd.DataFrame(streak_rows)
+    max_streaks = None
+    if not streak_df.empty:
+        max_streaks = (
+            streak_df
+            .groupby('Side')['Streak_Length']
+            .max()
+            .reset_index()
+        )
+
+    return {
+        'err_counts': err_counts,
+        'shot_type_counts': shot_type_counts,
+        'zone_counts': zone_counts,
+        'landing_zone_counts': landing_zone_counts,
+        'crit_counts': crit_counts,
+        'streak_df': streak_df,
+        'max_streaks': max_streaks
+    }
     
     if st.button("Generate Full PDF Report"):
         # Split the text into two variables
@@ -456,6 +586,99 @@ if uploaded_file:
             os.remove(tmp.name)
         plt.close()
 
+                # --- 4.2 ERROR STATISTICS SUMMARY ---
+        pdf.add_page()
+        pdf.section_title("Error Statistics Summary")
+
+        error_stats = compute_error_stats(rdf)
+        err_counts = error_stats['err_counts']
+        shot_type_counts = error_stats['shot_type_counts']
+        zone_counts = error_stats['zone_counts']
+        landing_zone_counts = error_stats['landing_zone_counts']
+        crit_counts = error_stats['crit_counts']
+        max_streaks = error_stats['max_streaks']
+
+        # 4.2.1 Total Forced / Unforced Errors by Side
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Total Forced vs Unforced Errors (by side committing error)", ln=True)
+        table_data = []
+        for side in ['Player', 'Opponent']:
+            for etype in ['Unforced Error', 'Forced Error']:
+                sub = err_counts[(err_counts['Error_Side'] == side) &
+                                 (err_counts['Error_Type'] == etype)]
+                count = int(sub['Count'].iloc[0]) if not sub.empty else 0
+                table_data.append([side, etype, count])
+        pdf.quick_table(["Side", "Error Type", "Count"], table_data, [40, 50, 30])
+
+        # 4.2.2 Unforced Errors in Critical Moments
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Unforced Errors in Critical Moments (score diff ≤1 or ≥18 points)", ln=True)
+        crit_table = []
+        for side in ['Player', 'Opponent']:
+            sub = crit_counts[(crit_counts['Error_Side'] == side) &
+                              (crit_counts['Error_Type'] == 'Unforced Error')]
+            count = int(sub['Count'].iloc[0]) if not sub.empty else 0
+            crit_table.append([side, "Unforced Error", count])
+        pdf.quick_table(["Side", "Error Type", "Count in Critical Moments"], crit_table, [40, 60, 50])
+
+        # 4.2.3 Error Breakdown by Shot Type (Unforced only)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Unforced Errors by Shot Type", ln=True)
+        shot_table = []
+        sub_shot = shot_type_counts[shot_type_counts['Error_Type'] == 'Unforced Error']
+        for side in ['Player', 'Opponent']:
+            side_sub = sub_shot[sub_shot['Error_Side'] == side]
+            for _, row in side_sub.iterrows():
+                shot_table.append([
+                    side,
+                    row['Shot_Type'] if pd.notna(row['Shot_Type']) else "Unknown",
+                    int(row['Count'])
+                ])
+        if shot_table:
+            pdf.quick_table(["Side", "Shot Type", "Count"], shot_table, [40, 60, 40])
+
+        # 4.2.4 Error Breakdown by Court Zone (Player Zone)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Unforced Errors by Player Court Zone", ln=True)
+        zone_table = []
+        sub_zone = zone_counts[zone_counts['Error_Type'] == 'Unforced Error']
+        for side in ['Player', 'Opponent']:
+            side_sub = sub_zone[sub_zone['Error_Side'] == side]
+            for _, row in side_sub.iterrows():
+                zone_table.append([
+                    side,
+                    row['Player_Zone'] if pd.notna(row['Player_Zone']) else "Unknown",
+                    int(row['Count'])
+                ])
+        if zone_table:
+            pdf.quick_table(["Side", "Player Zone", "Count"], zone_table, [40, 60, 40])
+
+        # 4.2.5 Max consecutive unforced errors
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Longest Streaks of Consecutive Unforced Errors", ln=True)
+        streak_table = []
+        if max_streaks is not None:
+            for _, row in max_streaks.iterrows():
+                streak_table.append([row['Side'], int(row['Streak_Length'])])
+        if streak_table:
+            pdf.quick_table(["Side", "Max Consecutive Unforced Errors"], streak_table, [70, 60])
+
+        # Optional: you could add one small bar chart: unforced errors by side
+        fig_err, ax_err = plt.subplots(figsize=(4, 3))
+        unforced_by_side = err_counts[err_counts['Error_Type'] == 'Unforced Error']
+        if not unforced_by_side.empty:
+            ax_err.bar(unforced_by_side['Error_Side'], unforced_by_side['Count'],
+                       color=[col_player, col_opponent])
+            ax_err.set_title("Total Unforced Errors by Side")
+            ax_err.set_ylabel("Count")
+            for i, v in enumerate(unforced_by_side['Count']):
+                ax_err.text(i, v + 0.2, str(int(v)), ha='center', va='bottom')
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                plt.savefig(tmp.name, bbox_inches='tight', dpi=150)
+                pdf.image(tmp.name, x=40, w=120)
+                os.remove(tmp.name)
+        plt.close()
+        
         # --- 5. POINT PROGRESSION & LOAD PER SET ---
         # We start the section title on its own page
         pdf.add_page()
@@ -516,11 +739,33 @@ if uploaded_file:
             ax.step(x_steps, o_steps, where='post', color=col_opponent, linewidth=2, label=o_name)
             
             # Numerical Score Labels
+            # Numerical Score Labels with Unforced Error Highlighting
             for _, row in s_df.iterrows():
                 x_pos = row['End_Rel']
-                score_val = int(row['P_Score_Before']+1) if row['Winner']=='Player' else int(row['O_Score_Before']+1)
-                color = col_player if row['Winner']=='Player' else col_opponent
-                ax.text(x_pos, score_val + 0.6, str(score_val), color=color, fontsize=7, fontweight='bold', ha='center')
+            # New score after this rally
+                if row['Winner'] == 'Player':
+            score_val = int(row['P_Score_Before'] + 1)
+                else:
+                    score_val = int(row['O_Score_Before'] + 1)
+
+            # Default colour: gold for player point, navy for opponent point
+            base_color = col_player if row['Winner'] == 'Player' else col_opponent
+            marker_color = base_color
+
+            # If the rally ended with an Unforced Error, colour the marker red
+            # (You can make it more precise: red only if the error side == the loser, using Error_Side logic.)
+            if isinstance(row.get('Error_Type', None), str) and row['Error_Type'] == 'Unforced Error':
+                marker_color = 'red'
+
+            ax.text(
+            x_pos,
+        score_val + 0.6,
+        str(score_val),
+        color=marker_color,
+        fontsize=7,
+        fontweight='bold',
+        ha='center'
+    )
 
             import matplotlib.ticker as ticker
             ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{int(x//60):02d}:{int(x%60):02d}"))
