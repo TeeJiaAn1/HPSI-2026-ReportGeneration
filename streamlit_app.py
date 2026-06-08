@@ -745,7 +745,7 @@ def compute_error_stats(rdf):
                 x_pos = row['End_Rel']
             # New score after this rally
                 if row['Winner'] == 'Player':
-            score_val = int(row['P_Score_Before'] + 1)
+                    score_val = int(row['P_Score_Before'] + 1)
                 else:
                     score_val = int(row['O_Score_Before'] + 1)
 
