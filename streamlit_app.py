@@ -286,7 +286,9 @@ def compute_unforced_point_contribution(rdf):
             'Side',
             'Total_Points_Won',
             'Points_From_Opp_Unforced',
-            'Pct_From_Opp_Unforced'
+            'Own_Points',
+            'Pct_From_Opp_Unforced',
+            'Pct_Own_Points'
         ])
 
     total_points = (
@@ -309,9 +311,17 @@ def compute_unforced_point_contribution(rdf):
     summary = total_points.merge(unforced_points, on='Side', how='left')
     summary['Points_From_Opp_Unforced'] = summary['Points_From_Opp_Unforced'].fillna(0).astype(int)
 
+    summary['Own_Points'] = summary['Total_Points_Won'] - summary['Points_From_Opp_Unforced']
+
     summary['Pct_From_Opp_Unforced'] = np.where(
         summary['Total_Points_Won'] > 0,
         (summary['Points_From_Opp_Unforced'] / summary['Total_Points_Won']) * 100,
+        0
+    )
+
+    summary['Pct_Own_Points'] = np.where(
+        summary['Total_Points_Won'] > 0,
+        (summary['Own_Points'] / summary['Total_Points_Won']) * 100,
         0
     )
 
@@ -644,7 +654,7 @@ if rdf is not None and not rdf.empty:
                 crit_table.append([side, "Unforced Error", count])
             pdf.quick_table(["Side", "Error Type", "Count in Critical Moments"], crit_table, [40, 60, 50])
 
-            pdf.set_font("Arial", 'B', 11)
+                        pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
 
             unforced_contrib = compute_unforced_point_contribution(rdf)
@@ -656,13 +666,15 @@ if rdf is not None and not rdf.empty:
                     side_name,
                     int(row['Total_Points_Won']),
                     int(row['Points_From_Opp_Unforced']),
-                    f"{row['Pct_From_Opp_Unforced']:.1f}%"
+                    int(row['Own_Points']),
+                    f"{row['Pct_From_Opp_Unforced']:.1f}%",
+                    f"{row['Pct_Own_Points']:.1f}%"
                 ])
 
             pdf.quick_table(
-                ["Side", "Total Points Won", "Points from Opp. UFE", "% of Points Won"],
+                ["Side", "Total Points Won", "Points from Opp. UFE", "Own Points", "% from Opp. UFE", "% Own Points"],
                 contrib_table,
-                [45, 40, 50, 35]
+                [35, 32, 40, 25, 30, 30]
             )
 
             pdf.set_font("Arial", 'B', 11)
