@@ -81,22 +81,22 @@ class BadmintonReport(FPDF):
         self.ln(5)
 
         def quick_table(self, header, data, col_widths):
-        font_size = 10
+            font_size = 10
 
-        self.set_font("Arial", 'B', font_size)
-        self.set_fill_color(230, 230, 230)
-        self.set_text_color(0, 0, 0)
+            self.set_font("Arial", 'B', font_size)
+            self.set_fill_color(230, 230, 230)
+            self.set_text_color(0, 0, 0)
 
-        for i, h in enumerate(header):
-            self.cell(col_widths[i], 7, str(h), border=1, fill=True, align='C')
-        self.ln()
-
-        self.set_font("Arial", size=font_size)
-        for row in data:
-            for i, item in enumerate(row):
-                self.cell(col_widths[i], 7, str(item), border=1, align='C')
+            for i, h in enumerate(header):
+                self.cell(col_widths[i], 7, str(h), border=1, fill=True, align='C')
             self.ln()
-        self.ln(5)
+
+            self.set_font("Arial", size=font_size)
+            for row in data:
+                for i, item in enumerate(row):
+                    self.cell(col_widths[i], 7, str(item), border=1, align='C')
+                self.ln()
+            self.ln(5)
         
         self.set_text_color(0, 0, 0)
         for row in data:
