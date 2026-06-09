@@ -18,7 +18,6 @@ col_player = "#FFA600"
 col_opponent = "#2C3E50"
 col_forced = "#2E8B57"
 
-
 # --- PDF TEXT SANITIZER FOR PYFPDF / LATIN-1 ---
 def safe_pdf_text(text):
     if text is None:
@@ -37,7 +36,6 @@ def safe_pdf_text(text):
         .encode("latin-1", "replace")
         .decode("latin-1")
     )
-
 
 # --- PDF CLASS DEFINITION ---
 class BadmintonReport(FPDF):
@@ -80,42 +78,25 @@ class BadmintonReport(FPDF):
         self.line(10, self.get_y(), 200, self.get_y())
         self.ln(5)
 
-        def quick_table(self, header, data, col_widths):
-            font_size = 10
+    def quick_table(self, header, data, col_widths):
+        font_size = 10
 
-            self.set_font("Arial", 'B', font_size)
-            self.set_fill_color(230, 230, 230)
-            self.set_text_color(0, 0, 0)
-
-            for i, h in enumerate(header):
-                self.cell(col_widths[i], 7, safe_pdf_text(h), border=1, fill=True, align='C')
-            self.ln()
-
-            self.set_font("Arial", size=font_size)
-            for row in data:
-                for i, item in enumerate(row):
-                    self.cell(col_widths[i], 7, safe_pdf_text(item), border=1, align='C')
-                self.ln()
-            self.ln(5)
-        
+        self.set_font("Arial", 'B', font_size)
+        self.set_fill_color(230, 230, 230)
         self.set_text_color(0, 0, 0)
+
+        for i, h in enumerate(header):
+            self.cell(col_widths[i], 7, safe_pdf_text(h), border=1, fill=True, align='C')
+        self.ln()
+
+        self.set_font("Arial", size=font_size)
+        self.set_text_color(0, 0, 0)
+
         for row in data:
             for i, item in enumerate(row):
-                text = safe_pdf_text(item)
-                cell_width = col_widths[i]
-
-                current_font_size = base_font_size
-                self.set_font("Arial", size=current_font_size)
-
-                while self.get_string_width(text) > (cell_width - 2) and current_font_size > 5:
-                    current_font_size -= 0.5
-                    self.set_font("Arial", size=current_font_size)
-
-                self.cell(cell_width, 7, text, border=1, align='C')
-                self.set_font("Arial", size=base_font_size)
+                self.cell(col_widths[i], 7, safe_pdf_text(item), border=1, align='C')
             self.ln()
         self.ln(5)
-
 
 # --- ANALYTICS ENGINE ---
 def analyze_match(df, p_name, o_name):
@@ -206,9 +187,7 @@ def analyze_match(df, p_name, o_name):
 
     rdf['Rest'] = (rdf.groupby('Set')['Start_Pos'].shift(-1) - rdf['End_Pos']) / 1000
     rdf['Ratio'] = rdf['Duration'] / rdf['Rest']
-
     return rdf
-
 
 def compute_error_stats(rdf):
     err_df = rdf[rdf['Error_Type'].notna()].copy()
@@ -319,7 +298,6 @@ def compute_unforced_point_contribution(rdf):
 
     summary = total_points.merge(unforced_points, on='Side', how='left')
     summary['Points_From_Opp_Unforced'] = summary['Points_From_Opp_Unforced'].fillna(0).astype(int)
-
     summary['Own_Points'] = summary['Total_Points_Won'] - summary['Points_From_Opp_Unforced']
 
     summary['Pct_From_Opp_Unforced'] = np.where(
@@ -655,23 +633,10 @@ if rdf is not None and not rdf.empty:
                 return int(sub['Count'].iloc[0]) if not sub.empty else 0
 
             table_data = [
-                [
-                    "Unforced Error",
-                    get_error_count("Player", "Unforced Error"),
-                    get_error_count("Opponent", "Unforced Error")
-                ],
-                [
-                    "Forced Error",
-                    get_error_count("Player", "Forced Error"),
-                    get_error_count("Opponent", "Forced Error")
-                ]
+                ["Unforced Error", get_error_count("Player", "Unforced Error"), get_error_count("Opponent", "Unforced Error")],
+                ["Forced Error", get_error_count("Player", "Forced Error"), get_error_count("Opponent", "Forced Error")]
             ]
-
-            pdf.quick_table(
-                ["Metric", p_name, o_name],
-                table_data,
-                [55, 42, 42]
-            )
+            pdf.quick_table(["Metric", p_name, o_name], table_data, [55, 42, 42])
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Critical Moments (score diff <=1 or >=18 points)"), ln=True)
@@ -684,24 +649,14 @@ if rdf is not None and not rdf.empty:
                 return int(sub['Count'].iloc[0]) if not sub.empty else 0
 
             crit_table = [
-                [
-                    "Unforced Error in Critical Moment",
-                    get_critical_unforced_count("Player"),
-                    get_critical_unforced_count("Opponent")
-                ]
+                ["Unforced Error in Critical Moment", get_critical_unforced_count("Player"), get_critical_unforced_count("Opponent")]
             ]
+            pdf.quick_table(["Metric", p_name, o_name], crit_table, [55, 42, 42])
 
-            pdf.quick_table(
-                ["Metric", p_name, o_name],
-                crit_table,
-                [55, 42, 42]
-            )
-            
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
 
             unforced_contrib = compute_unforced_point_contribution(rdf)
-
             contrib_table = []
             for _, row in unforced_contrib.iterrows():
                 side_name = p_name if row['Side'] == 'Player' else o_name
@@ -724,7 +679,6 @@ if rdf is not None and not rdf.empty:
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors by Shot Type"), ln=True)
 
             sub_shot = shot_type_counts[shot_type_counts['Error_Type'] == 'Unforced Error'].copy()
-
             if not sub_shot.empty:
                 sub_shot['Shot_Type'] = sub_shot['Shot_Type'].fillna("Unknown")
 
@@ -763,24 +717,14 @@ if rdf is not None and not rdf.empty:
                 for _, row in shot_pivot.iterrows():
                     player_val = int(row['Player']) if row['Player'] > 0 else "-"
                     opponent_val = int(row['Opponent']) if row['Opponent'] > 0 else "-"
+                    shot_table.append([row['Shot_Type'], player_val, opponent_val])
 
-                    shot_table.append([
-                        row['Shot_Type'],
-                        player_val,
-                        opponent_val
-                    ])
-
-                pdf.quick_table(
-                    ["Shot Type", p_name, o_name],
-                    shot_table,
-                    [55, 42, 42]
-                )
+                pdf.quick_table(["Shot Type", p_name, o_name], shot_table, [55, 42, 42])
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors by Player Court Zone"), ln=True)
 
             sub_zone = zone_counts[zone_counts['Error_Type'] == 'Unforced Error'].copy()
-
             if not sub_zone.empty:
                 sub_zone['Player_Zone'] = sub_zone['Player_Zone'].fillna("Unknown")
 
@@ -801,18 +745,9 @@ if rdf is not None and not rdf.empty:
                 for _, row in zone_pivot.iterrows():
                     player_val = int(row['Player']) if row['Player'] > 0 else "-"
                     opponent_val = int(row['Opponent']) if row['Opponent'] > 0 else "-"
+                    zone_table.append([row['Player_Zone'], player_val, opponent_val])
 
-                    zone_table.append([
-                        row['Player_Zone'],
-                        player_val,
-                        opponent_val
-                    ])
-
-                pdf.quick_table(
-                    ["Player Zone", p_name, o_name],
-                    zone_table,
-                    [55, 42, 42]
-                )
+                pdf.quick_table(["Player Zone", p_name, o_name], zone_table, [55, 42, 42])
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Longest Streaks of Consecutive Unforced Errors"), ln=True)
@@ -826,12 +761,7 @@ if rdf is not None and not rdf.empty:
                 [p_name, streak_map['Player']],
                 [o_name, streak_map['Opponent']]
             ]
-
-            pdf.quick_table(
-                ["Player", "Max. Consecutive Unforced Errors"],
-                streak_table,
-                [80, 70]
-            )
+            pdf.quick_table(["Player", "Max. Consecutive Unforced Errors"], streak_table, [80, 70])
 
             # --- 5. POINT PROGRESSION & LOAD PER SET ---
             pdf.add_page()
@@ -877,9 +807,6 @@ if rdf is not None and not rdf.empty:
                 ax.step(x_steps, p_steps, where='post', color=col_player, linewidth=2, label=p_name)
                 ax.step(x_steps, o_steps, where='post', color=col_opponent, linewidth=2, label=o_name)
 
-                # Always show the actual gained point.
-                # Forced error -> winner point label green.
-                # Unforced error -> winner point label remains visible, plus a red "x" on loser side.
                 for _, row in s_df.iterrows():
                     x_pos = row['End_Rel']
                     winner = row['Winner']
@@ -894,10 +821,7 @@ if rdf is not None and not rdf.empty:
                         loser_score_val = int(row['P_Score_Before'])
                         winner_color_default = col_opponent
 
-                    if error_type == 'Forced Error':
-                        winner_label_color = col_forced
-                    else:
-                        winner_label_color = winner_color_default
+                    winner_label_color = col_forced if error_type == 'Forced Error' else winner_color_default
 
                     ax.text(
                         x_pos,
@@ -962,6 +886,7 @@ if rdf is not None and not rdf.empty:
                 toughest_table_data,
                 [10, 25, 25, 30, 25, 25, 50]
             )
+
             pdf.set_font("Arial", 'I', 9)
             pdf.multi_cell(0, 5, safe_pdf_text("Note: A larger W:R ratio represents a higher intensity rally (more work per unit of rest)."))
             pdf.ln(10)
