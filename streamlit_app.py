@@ -687,6 +687,7 @@ if rdf is not None and not rdf.empty:
                 crit_table,
                 [55, 42, 42]
             )
+            
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
 
@@ -697,19 +698,18 @@ if rdf is not None and not rdf.empty:
                 side_name = p_name if row['Side'] == 'Player' else o_name
                 contrib_table.append([
                     side_name,
-                    int(row['Total_Points_Won']),
-                    int(row['Points_From_Opp_Unforced']),
                     int(row['Own_Points']),
-                    f"{row['Pct_From_Opp_Unforced']:.1f}%",
-                    f"{row['Pct_Own_Points']:.1f}%"
+                    int(row['Points_From_Opp_Unforced']),
+                    f"{row['Pct_Own_Points']:.1f}%",
+                    f"{row['Pct_From_Opp_Unforced']:.1f}%"
                 ])
 
             pdf.quick_table(
-                ["Side", "Total Points Won", "Points from Opp. UFE", "Own Points", "% from Opp. UFE", "% Own Points"],
+                ["Player", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
                 contrib_table,
-                [35, 32, 40, 25, 30, 30]
+                [40, 30, 45, 30, 35]
             )
-
+            
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors by Shot Type"), ln=True)
             shot_table = []
