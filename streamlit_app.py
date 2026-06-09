@@ -698,6 +698,7 @@ if rdf is not None and not rdf.empty:
                 side_name = p_name if row['Side'] == 'Player' else o_name
                 contrib_table.append([
                     side_name,
+                    int(row['Total_Points_Won']),
                     int(row['Own_Points']),
                     int(row['Points_From_Opp_Unforced']),
                     f"{row['Pct_Own_Points']:.1f}%",
@@ -705,9 +706,9 @@ if rdf is not None and not rdf.empty:
                 ])
 
             pdf.quick_table(
-                ["Player", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
+                ["Player", "Total Points Won", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
                 contrib_table,
-                [40, 30, 45, 30, 35]
+                [32, 32, 25, 42, 26, 30]
             )
             
             pdf.set_font("Arial", 'B', 11)
