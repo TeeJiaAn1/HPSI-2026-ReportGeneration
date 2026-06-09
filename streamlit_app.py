@@ -81,25 +81,40 @@ class BadmintonReport(FPDF):
         self.ln(5)
 
     def quick_table(self, header, data, col_widths):
-        font_size = 10
+        base_font_size = 10
+        min_font_size = 6
+        header_height = 8
+        body_height = 7
+        padding = 2
 
-        # Header style - same for all tables
-        self.set_font("Arial", 'B', font_size)
+        # Header row
         self.set_fill_color(44, 62, 80)
         self.set_text_color(255, 255, 255)
 
         for i, h in enumerate(header):
-            self.cell(col_widths[i], 8, safe_pdf_text(h), border=1, fill=True, align='C')
+            text = safe_pdf_text(h)
+            col_width = col_widths[i]
+
+            font_size = base_font_size
+            self.set_font("Arial", 'B', font_size)
+
+            while self.get_string_width(text) > (col_width - padding) and font_size > min_font_size:
+                font_size -= 0.5
+                self.set_font("Arial", 'B', font_size)
+
+            self.cell(col_width, header_height, text, border=1, fill=True, align='C')
+
         self.ln()
 
-        # Body style
-        self.set_font("Arial", size=font_size)
+        # Body rows
+        self.set_font("Arial", size=10)
         self.set_text_color(0, 0, 0)
 
         for row in data:
             for i, item in enumerate(row):
-                self.cell(col_widths[i], 7, safe_pdf_text(item), border=1, align='C')
+                self.cell(col_widths[i], body_height, safe_pdf_text(item), border=1, align='C')
             self.ln()
+
         self.ln(5)
 
 
@@ -419,36 +434,36 @@ if rdf is not None and not rdf.empty:
             def get_p_stats(side):
                 win_sub = rdf[rdf['Winner'] == side]
                 serve_sub = rdf[rdf['Server'] == side]
-                pre_sub = rdf[rdf['Is_Pressure'] == True]
+                pres_sub = rdf[rdf['Is_Pressure'] == True]
 
                 p_wins = len(win_sub)
                 p_rally = win_sub['Duration'].mean() if not win_sub.empty else 0.0
                 p_rest = win_sub['Rest'].mean() if not win_sub.empty else 0.0
 
                 s_wins = len(serve_sub[serve_sub['Winner'] == side])
-                s_display = f"{s_wins} / {len(serve_sub)} ({(s_wins / len(serve_sub) * 100):.0f}%)" if len(serve_sub) > 0 else "0 / 0 (0%)"
+                s_display = f"{(s_wins / len(serve_sub) * 100):.0f}% ({s_wins})" if len(serve_sub) > 0 else "0% (0)"
 
-                pr_wins = len(pre_sub[pre_sub['Winner'] == side])
-                pr_display = f"{pr_wins} / {len(pre_sub)} ({(pr_wins / len(pre_sub) * 100):.0f}%)" if len(pre_sub) > 0 else "0 / 0 (0%)"
+                pr_wins = len(pres_sub[pres_sub['Winner'] == side])
+                pr_display = f"{(pr_wins / len(pres_sub) * 100):.0f}% ({pr_wins})" if len(pres_sub) > 0 else "0% (0)"
 
-                dist_str = "0 / 0 / 0"
+                dist_str = "0% / 0% / 0%"
                 if not win_sub.empty:
                     d = win_sub['Cat'].value_counts(normalize=True) * 100
                     dist_str = f"{d.get('Short', 0):.0f}% / {d.get('Mid', 0):.0f}% / {d.get('Long', 0):.0f}%"
 
                 return p_wins, p_rally, p_rest, s_display, pr_display, dist_str
 
-            pv = get_p_stats("Player")
-            ov = get_p_stats("Opponent")
+            p_v = get_p_stats("Player")
+            o_v = get_p_stats("Opponent")
 
             player_table = [
-                ["Total Points Won", f"{pv[0]} ({pv[0] / len(rdf) * 100:.1f}%)", f"{ov[0]} ({ov[0] / len(rdf) * 100:.1f}%)"],
-                ["Avg Rally Duration (s)", f"{pv[1]:.1f}", f"{ov[1]:.1f}"],
-                ["Avg Rest Duration (s)", f"{pv[2]:.1f}", f"{ov[2]:.1f}"],
-                ["Work:Rest Ratio", f"1 : {pv[2] / pv[1]:.1f}" if pv[1] > 0 else "N/A", f"1 : {ov[2] / ov[1]:.1f}" if ov[1] > 0 else "N/A"],
-                ["Serve Win %", pv[3], ov[3]],
-                ["Pressure Points Won %", pv[4], ov[4]],
-                ["Short/Mid/Long distribution", pv[5], ov[5]]
+                ["Total Points Won %", f"{p_v[0] / len(rdf) * 100:.1f}% ({p_v[0]})", f"{o_v[0] / len(rdf) * 100:.1f}% ({o_v[0]})"],
+                ["Avg Rally Duration (s)", f"{p_v[1]:.1f}", f"{o_v[1]:.1f}"],
+                ["Avg Rest Duration (s)", f"{p_v[2]:.1f}", f"{o_v[2]:.1f}"],
+                ["Work:Rest Ratio", f"1 : {p_v[2] / p_v[1]:.1f}" if p_v[1] > 0 else "N/A", f"1 : {o_v[2] / o_v[1]:.1f}" if o_v[1] > 0 else "N/A"],
+                ["Serve Win %", p_v[3], o_v[3]],
+                ["Pressure Points Won %", p_v[4], o_v[4]],
+                ["Short/Mid/Long (%) distribution", p_v[5], o_v[5]]
             ]
             pdf.quick_table(["Metric", p_name, o_name], player_table, [70, 60, 60])
 
@@ -464,8 +479,8 @@ if rdf is not None and not rdf.empty:
 
                 p_wins = len(subset[subset['Winner'] == 'Player'])
                 o_wins = len(subset[subset['Winner'] == 'Opponent'])
-                p_pct = p_wins / total * 100
-                o_pct = o_wins / total * 100
+                p_pct = (p_wins / total) * 100
+                o_pct = (o_wins / total) * 100
 
                 return (
                     f"{side_name} Serves: {total}\n"
@@ -482,18 +497,17 @@ if rdf is not None and not rdf.empty:
             pdf.ln(5)
 
             fig_serve, ax_serve = plt.subplots(figsize=(8, 5))
-
             serve_counts = rdf.groupby(['Server', 'Winner']).size().reset_index(name='counts')
             serve_totals = rdf.groupby('Server').size().reset_index(name='totals')
             serve_plot_data = serve_counts.merge(serve_totals, on='Server')
-            serve_plot_data['pct'] = serve_plot_data['counts'] / serve_plot_data['totals'] * 100
+            serve_plot_data['pct'] = (serve_plot_data['counts'] / serve_plot_data['totals']) * 100
 
             serve_plot_data['Server'] = serve_plot_data['Server'].map({'Player': p_name, 'Opponent': o_name})
             serve_plot_data['Winner'] = serve_plot_data['Winner'].map({'Player': p_name, 'Opponent': o_name})
             serve_totals['Server'] = serve_totals['Server'].map({'Player': p_name, 'Opponent': o_name})
 
             server_order = [p_name, o_name]
-            color_map = {p_name: "#FFA600", o_name: "#2C3E50"}
+            color_map = {p_name: '#FFA600', o_name: '#2C3E50'}
 
             sns.barplot(
                 data=serve_plot_data,
@@ -513,22 +527,23 @@ if rdf is not None and not rdf.empty:
                     if 0 <= idx < len(server_order):
                         server_name = server_order[idx]
                         total = serve_totals[serve_totals['Server'] == server_name]['totals'].values[0]
-                        count = int(round(height / 100 * total))
+                        count = int(round((height / 100) * total))
                         ax_serve.text(
-                            p.get_x() + p.get_width() / 2.0,
+                            p.get_x() + p.get_width() / 2.,
                             height / 2,
-                            f"{height:.0f}% ({count})",
+                            f'{height:.0f}% ({count})',
                             ha='center',
                             va='center',
                             color='white',
                             fontweight='bold',
                             fontsize=9
-)
+                        )
+
             ax_serve.set_title("Serve Outcome Breakdown", fontsize=14)
             ax_serve.set_xlabel("")
-            ax_serve.set_ylabel("Percentage of Points Won")
+            ax_serve.set_ylabel("Percentage of Points Won (%)")
             ax_serve.set_ylim(0, 110)
-            ax_serve.legend(title="Won By", loc="upper right")
+            ax_serve.legend(title="Won By:", loc='upper right')
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', dpi=150)
@@ -536,35 +551,36 @@ if rdf is not None and not rdf.empty:
                 os.remove(tmp.name)
             plt.close()
 
-            # --- 5. RALLY STATISTICS SUMMARY ---
+            # --- 4.1 RALLY STATISTICS SUMMARY ---
             pdf.add_page()
             pdf.section_title("Rally Statistics Summary")
+
             pdf.set_font("Arial", 'I', 10)
             pdf.set_x(10)
-            pdf.cell(190, 10, safe_pdf_text("Rally Categories: Short < 7s, Mid 7-15s, Long > 15s"), ln=True)
+            pdf.cell(190, 10, safe_pdf_text("Rally Categories: Short (<7s), Mid (7-15s), Long (>15s)"), ln=True)
             pdf.ln(5)
 
             fig_dist, ax_dist = plt.subplots(figsize=(8, 4))
-            rdf['Cat'] = pd.Categorical(rdf['Cat'], categories=["Short", "Mid", "Long"], ordered=True)
-            cat_counts = rdf['Cat'].value_counts().sort_index()
-            cat_pcts = cat_counts / len(rdf) * 100
+            rdf['Cat'] = pd.Categorical(rdf['Cat'], categories=['Short', 'Mid', 'Long'], ordered=True)
+            cat_counts = rdf['Cat'].value_counts(sort=False)
+            cat_pcts = (cat_counts / len(rdf)) * 100
 
-            bars = ax_dist.bar(cat_counts.index.astype(str), cat_pcts, color="#2C3E50", width=0.6)
+            bars = ax_dist.bar(cat_counts.index.astype(str), cat_pcts, color='#2C3E50', width=0.6)
             ax_dist.set_title("Rally Length Distribution", fontweight='bold')
-            ax_dist.set_ylabel("Percentage of Rallies")
+            ax_dist.set_ylabel("Percentage of Rallies (%)")
             ax_dist.set_ylim(0, max(cat_pcts) + 15 if len(cat_pcts) > 0 else 100)
 
             for i, bar in enumerate(bars):
                 height = bar.get_height()
                 count = cat_counts.iloc[i]
                 ax_dist.text(
-                    bar.get_x() + bar.get_width() / 2.0,
+                    bar.get_x() + bar.get_width() / 2.,
                     height + 1,
-                    f"{height:.0f}% ({count})",
+                    f'{height:.0f}% ({count})',
                     ha='center',
                     va='bottom',
                     fontweight='bold'
-)
+                )
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', dpi=150)
@@ -573,44 +589,49 @@ if rdf is not None and not rdf.empty:
             plt.close()
             pdf.ln(10)
 
-            fig_wincat, ax_wincat = plt.subplots(figsize=(8, 5))
-            wincat_counts = rdf.groupby(['Cat', 'Winner']).size().unstack(fill_value=0)
+            fig_win_cat, ax_win_cat = plt.subplots(figsize=(8, 5))
+            win_cat_counts = rdf.groupby(['Cat', 'Winner']).size().unstack(fill_value=0)
 
             for col in ['Opponent', 'Player']:
-                if col not in wincat_counts.columns:
-                    wincat_counts[col] = 0
+                if col not in win_cat_counts.columns:
+                    win_cat_counts[col] = 0
 
-            wincat_counts = wincat_counts[['Opponent', 'Player']]
-            wincat_totals = wincat_counts.sum(axis=1)
-            wincat_props = wincat_counts.div(wincat_totals, axis=0).mul(100)
-            wincat_props = wincat_props.reindex(["Short", "Mid", "Long"])
-            wincat_props.columns = [o_name, p_name]
-            wincat_counts.columns = [o_name, p_name]
+            win_cat_counts = win_cat_counts[['Opponent', 'Player']]
+            win_cat_totals = win_cat_counts.sum(axis=1)
+            win_cat_props = win_cat_counts.div(win_cat_totals, axis=0).mul(100)
+            win_cat_props = win_cat_props.reindex(['Short', 'Mid', 'Long'])
+            win_cat_props.columns = [o_name, p_name]
+            win_cat_counts.columns = [o_name, p_name]
 
-            wincat_props.plot(kind='bar', stacked=True, ax=ax_wincat, color=["#2C3E50", "#FFA600"])
+            win_cat_props.plot(
+                kind='bar',
+                stacked=True,
+                ax=ax_win_cat,
+                color=['#2C3E50', '#FFA600']
+            )
 
-            for i, (idx, row) in enumerate(wincat_props.iterrows()):
+            for i, (idx, row) in enumerate(win_cat_props.iterrows()):
                 cumulative_height = 0
-                for winner in wincat_props.columns:
+                for winner in win_cat_props.columns:
                     val = row[winner]
                     if val > 0:
-                        count = int(wincat_counts.loc[idx, winner])
-                        ax_wincat.text(
+                        count = int(win_cat_counts.loc[idx, winner])
+                        ax_win_cat.text(
                             i,
-                            cumulative_height + val / 2,
+                            cumulative_height + (val / 2),
                             f"{val:.0f}% ({count})",
                             ha='center',
                             va='center',
                             color='white',
                             fontweight='bold',
                             fontsize=8
-)
-                        cumulative_height += val
+                        )
+                    cumulative_height += val
 
-            ax_wincat.set_title("Win by Rally Category", fontweight='bold')
-            ax_wincat.set_ylabel("Win Percentage")
-            ax_wincat.set_xlabel("Rally Category")
-            ax_wincat.legend(title="Won By", loc="upper right")
+            ax_win_cat.set_title("Win % by Rally Category", fontweight='bold')
+            ax_win_cat.set_ylabel("Win Percentage (%)")
+            ax_win_cat.set_xlabel("Rally Category")
+            ax_win_cat.legend(title="Won By:", loc='upper right')
             plt.xticks(rotation=0)
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
@@ -619,7 +640,7 @@ if rdf is not None and not rdf.empty:
                 os.remove(tmp.name)
             plt.close()
 
-            # --- 6. ERROR STATISTICS SUMMARY ---
+            # --- 4.2 ERROR STATISTICS SUMMARY ---
             pdf.add_page()
             pdf.section_title("Error Statistics Summary")
 
@@ -634,26 +655,32 @@ if rdf is not None and not rdf.empty:
             pdf.cell(0, 8, safe_pdf_text("Error Type by Side Committing Error"), ln=True)
 
             def get_error_count(side, etype):
-                sub = err_counts[(err_counts['Error_Side'] == side) & (err_counts['Error_Type'] == etype)]
+                sub = err_counts[
+                    (err_counts['Error_Side'] == side) &
+                    (err_counts['Error_Type'] == etype)
+                ]
                 return int(sub['Count'].iloc[0]) if not sub.empty else 0
 
             table_data = [
                 ["Unforced Error", get_error_count("Player", "Unforced Error"), get_error_count("Opponent", "Unforced Error")],
                 ["Forced Error", get_error_count("Player", "Forced Error"), get_error_count("Opponent", "Forced Error")]
             ]
-            pdf.quick_table(["Metric", p_name, o_name], table_data, [55, 42, 42])
+            pdf.quick_table(["Metric", p_name, o_name], table_data, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Critical Moments (score diff <= 1 or >= 18 points)"), ln=True)
+            pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Critical Moments (score diff <=1 or >=18 points)"), ln=True)
 
             def get_critical_unforced_count(side):
-                sub = crit_counts[(crit_counts['Error_Side'] == side) & (crit_counts['Error_Type'] == "Unforced Error")]
+                sub = crit_counts[
+                    (crit_counts['Error_Side'] == side) &
+                    (crit_counts['Error_Type'] == 'Unforced Error')
+                ]
                 return int(sub['Count'].iloc[0]) if not sub.empty else 0
 
             crit_table = [
                 ["Unforced Error in Critical Moment", get_critical_unforced_count("Player"), get_critical_unforced_count("Opponent")]
             ]
-            pdf.quick_table(["Metric", p_name, o_name], crit_table, [55, 42, 42])
+            pdf.quick_table(["Metric", p_name, o_name], crit_table, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
@@ -674,29 +701,44 @@ if rdf is not None and not rdf.empty:
             pdf.quick_table(
                 ["Player", "Total Points Won", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
                 contrib_table,
-                [32, 32, 25, 42, 26, 30]
+                [40, 28, 25, 40, 26, 31]
             )
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors by Shot Type"), ln=True)
 
-            sub_shot = shot_type_counts[shot_type_counts['Error_Type'] == "Unforced Error"].copy()
+            sub_shot = shot_type_counts[shot_type_counts['Error_Type'] == 'Unforced Error'].copy()
             if not sub_shot.empty:
                 sub_shot['Shot_Type'] = sub_shot['Shot_Type'].fillna("Unknown")
                 shot_pivot = (
                     sub_shot
-                    .pivot_table(index='Shot_Type', columns='Error_Side', values='Count', aggfunc='sum', fill_value=0)
+                    .pivot_table(
+                        index='Shot_Type',
+                        columns='Error_Side',
+                        values='Count',
+                        aggfunc='sum',
+                        fill_value=0
+                    )
                     .reindex(columns=['Player', 'Opponent'], fill_value=0)
                     .reset_index()
                 )
 
-                preferred_order = ["Full Smash", "Serve Won", "Serve Loss", "Half Smash", "Drop", "Net", "NetKill", "Drive", "Block", "Clear", "Lift", "Let", "Unknown"]
+                preferred_order = [
+                    'Full Smash', 'Serve Won', 'Serve Loss', 'Half Smash',
+                    'Drop', 'Net', 'NetKill', 'Drive', 'Block',
+                    'Clear', 'Lift', 'Let', 'Unknown'
+                ]
+
                 present_types = shot_pivot['Shot_Type'].tolist()
                 ordered_types = [x for x in preferred_order if x in present_types]
                 remaining_types = [x for x in present_types if x not in ordered_types]
                 final_order = ordered_types + sorted(remaining_types)
 
-                shot_pivot['Shot_Type'] = pd.Categorical(shot_pivot['Shot_Type'], categories=final_order, ordered=True)
+                shot_pivot['Shot_Type'] = pd.Categorical(
+                    shot_pivot['Shot_Type'],
+                    categories=final_order,
+                    ordered=True
+                )
                 shot_pivot = shot_pivot.sort_values('Shot_Type')
 
                 shot_table = []
@@ -705,17 +747,24 @@ if rdf is not None and not rdf.empty:
                     opponent_val = int(row['Opponent']) if row['Opponent'] > 0 else "-"
                     shot_table.append([row['Shot_Type'], player_val, opponent_val])
 
-                pdf.quick_table(["Shot Type", p_name, o_name], shot_table, [55, 42, 42])
+                pdf.quick_table(["Shot Type", p_name, o_name], shot_table, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors by Player Court Zone"), ln=True)
 
-            sub_zone = zone_counts[zone_counts['Error_Type'] == "Unforced Error"].copy()
+            sub_zone = zone_counts[zone_counts['Error_Type'] == 'Unforced Error'].copy()
             if not sub_zone.empty:
                 sub_zone['Player_Zone'] = sub_zone['Player_Zone'].fillna("Unknown")
+
                 zone_pivot = (
                     sub_zone
-                    .pivot_table(index='Player_Zone', columns='Error_Side', values='Count', aggfunc='sum', fill_value=0)
+                    .pivot_table(
+                        index='Player_Zone',
+                        columns='Error_Side',
+                        values='Count',
+                        aggfunc='sum',
+                        fill_value=0
+                    )
                     .reindex(columns=['Player', 'Opponent'], fill_value=0)
                     .reset_index()
                 )
@@ -726,37 +775,37 @@ if rdf is not None and not rdf.empty:
                     opponent_val = int(row['Opponent']) if row['Opponent'] > 0 else "-"
                     zone_table.append([row['Player_Zone'], player_val, opponent_val])
 
-                pdf.quick_table(["Player Zone", p_name, o_name], zone_table, [55, 42, 42])
+                pdf.quick_table(["Player Zone", p_name, o_name], zone_table, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Longest Streaks of Consecutive Unforced Errors"), ln=True)
 
-            streak_map = {"Player": 0, "Opponent": 0}
+            streak_map = {'Player': 0, 'Opponent': 0}
             if max_streaks is not None and not max_streaks.empty:
                 for _, row in max_streaks.iterrows():
                     streak_map[row['Side']] = int(row['Streak_Length'])
 
             streak_table = [
-                [p_name, streak_map["Player"]],
-                [o_name, streak_map["Opponent"]]
+                [p_name, streak_map['Player']],
+                [o_name, streak_map['Opponent']]
             ]
-            pdf.quick_table(["Player", "Max. Consecutive Unforced Errors"], streak_table, [80, 70])
+            pdf.quick_table(["Player", "Max. Consecutive Unforced Errors"], streak_table, [95, 70])
 
-            # --- 7. POINT PROGRESSION LOAD PER SET ---
+            # --- 5. POINT PROGRESSION & LOAD PER SET ---
             pdf.add_page()
-            pdf.section_title("Point Progression Load per Set")
+            pdf.section_title("Point Progression & Load per Set")
 
             set_list = list(rdf['Set'].unique())
+
             for idx_set, s_name in enumerate(set_list):
                 if idx_set != 0:
                     pdf.add_page()
 
                 digits = ''.join(filter(str.isdigit, str(s_name)))
                 clean_set_title = f"Set {digits}" if digits else safe_pdf_text(str(s_name))
-
                 s_df = rdf[rdf['Set'] == s_name].copy().sort_values('Start_Pos')
-                stats_data = s_df[(s_df['Rest'] > 0.1) & (s_df['Rest'] < 45)].copy()
 
+                stats_data = s_df[(s_df['Rest'] > 0.1) & (s_df['Rest'] < 45)].copy()
                 if not stats_data.empty:
                     load_rows = [
                         ["Work Duration (s)", f"{stats_data['Duration'].max():.1f}", f"{stats_data['Duration'].min():.1f}", f"{stats_data['Duration'].mean():.1f}"],
@@ -836,10 +885,9 @@ if rdf is not None and not rdf.empty:
                 plt.close()
                 pdf.ln(10)
 
-            # --- 8. TOP 10 TOUGHEST RALLIES ---
+            # --- 6. TOP 10 TOUGHEST RALLIES ---
             pdf.add_page()
             pdf.section_title("Top 10 Toughest Rallies (by Work:Rest Ratio)")
-
             set_totals = rdf.groupby('Set').size().to_dict()
             toughest_df = rdf[rdf['Ratio'].notna()].copy()
             top_10 = toughest_df.sort_values('Ratio', ascending=False).head(10).reset_index(drop=True)
@@ -870,7 +918,7 @@ if rdf is not None and not rdf.empty:
             pdf.multi_cell(0, 5, safe_pdf_text("Note: A larger W:R ratio represents a higher intensity rally (more work per unit of rest)."))
             pdf.ln(10)
 
-            # --- 9. NOTES ---
+            # --- 7. NOTES ---
             pdf.section_title("NOTES: Methodology & Data Assumptions")
             pdf.set_font("Arial", size=10)
 
