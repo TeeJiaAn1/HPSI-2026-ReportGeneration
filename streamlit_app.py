@@ -713,7 +713,7 @@ if rdf is not None and not rdf.empty:
             pdf.quick_table(
                 ["Player", "Total Points", "Points Gained", "Points Received", "% Points Gained", "% Point Received"],
                 contrib_table,
-                [58, 27, 27, 27, 23, 23]
+                [58, 27, 27, 27, 27, 27]
             )
 
             #pdf.set_font("Arial", 'B', 11)
