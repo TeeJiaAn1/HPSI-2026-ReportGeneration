@@ -680,7 +680,7 @@ if rdf is not None and not rdf.empty:
             pdf.quick_table(["Metric", p_name, o_name], table_data, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Critical Moments (score diff <=1 or >=20 points)"), ln=True)
+            pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Pressure Points (score diff <=1 or >=20 points)"), ln=True)
 
             def get_critical_unforced_count(side):
                 sub = crit_counts[
@@ -695,7 +695,7 @@ if rdf is not None and not rdf.empty:
             pdf.quick_table(["Metric", p_name, o_name], crit_table, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
+            pdf.cell(0, 8, safe_pdf_text("Total Points Gained (Forced Errors) and Received (Opponent's Unforced Errors)"), ln=True)
 
             unforced_contrib = compute_unforced_point_contribution(rdf)
             contrib_table = []
@@ -711,7 +711,7 @@ if rdf is not None and not rdf.empty:
                 ])
 
             pdf.quick_table(
-                ["Player", "Total Points Won", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
+                ["Player", "Total Points", "Points Gained", "Points Received", "% Points Gained", "% Point Received"],
                 contrib_table,
                 [58, 27, 25, 38, 21, 21]
             )
