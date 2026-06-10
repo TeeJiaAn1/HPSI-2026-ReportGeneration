@@ -253,8 +253,8 @@ def compute_error_stats(rdf):
     err_df['Score_Diff'] = (err_df['P_Score_Before'] - err_df['O_Score_Before']).abs()
     err_df['Is_Critical'] = (
         (err_df['Score_Diff'] <= 1) |
-        (err_df['P_Score_Before'] >= 18) |
-        (err_df['O_Score_Before'] >= 18)
+        (err_df['P_Score_Before'] >= 20) |
+        (err_df['O_Score_Before'] >= 20)
     )
 
     crit_counts = err_df[err_df['Is_Critical']].groupby(['Error_Side', 'Error_Type']).size().reset_index(name='Count')
@@ -680,7 +680,7 @@ if rdf is not None and not rdf.empty:
             pdf.quick_table(["Metric", p_name, o_name], table_data, [50, 55, 55])
 
             pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Critical Moments (score diff <=1 or >=18 points)"), ln=True)
+            pdf.cell(0, 8, safe_pdf_text("Unforced Errors in Critical Moments (score diff <=1 or >=20 points)"), ln=True)
 
             def get_critical_unforced_count(side):
                 sub = crit_counts[
@@ -694,27 +694,27 @@ if rdf is not None and not rdf.empty:
             ]
             pdf.quick_table(["Metric", p_name, o_name], crit_table, [50, 55, 55])
 
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
+            #pdf.set_font("Arial", 'B', 11)
+            #pdf.cell(0, 8, safe_pdf_text("Points Won from Opponent Unforced Errors"), ln=True)
 
-            unforced_contrib = compute_unforced_point_contribution(rdf)
-            contrib_table = []
-            for _, row in unforced_contrib.iterrows():
-                side_name = p_name if row['Side'] == 'Player' else o_name
-                contrib_table.append([
-                    side_name,
-                    int(row['Total_Points_Won']),
-                    int(row['Own_Points']),
-                    int(row['Points_From_Opp_Unforced']),
-                    f"{row['Pct_Own_Points']:.1f}%",
-                    f"{row['Pct_From_Opp_Unforced']:.1f}%"
-                ])
+            #unforced_contrib = compute_unforced_point_contribution(rdf)
+            #contrib_table = []
+            #for _, row in unforced_contrib.iterrows():
+                #side_name = p_name if row['Side'] == 'Player' else o_name
+                #contrib_table.append([
+                    #side_name,
+                    #int(row['Total_Points_Won']),
+                    #int(row['Own_Points']),
+                    #int(row['Points_From_Opp_Unforced']),
+                    #f"{row['Pct_Own_Points']:.1f}%",
+                    #f"{row['Pct_From_Opp_Unforced']:.1f}%"
+                #])
 
-            pdf.quick_table(
-                ["Player", "Total Points Won", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
+            #pdf.quick_table(
+                #["Player", "Total Points Won", "Own Points", "Points from Opp. UFE", "% Own Points", "% from Opp. UFE"],
                 contrib_table,
-                [58, 27, 25, 38, 21, 21]
-            )
+                #[58, 27, 25, 38, 21, 21]
+            #)
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Unforced Errors by Shot Type"), ln=True)
