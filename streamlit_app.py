@@ -392,7 +392,7 @@ with st.sidebar:
         st.markdown("---")
         st.subheader("Timeline Focus")
         focus_label = st.selectbox(
-            "Choose which SGP player controls error markers in point progression timeline",
+            "Choose which SGP player to display unforced error markers in point progression timeline",
             options=[p_name, o_name],
             index=0
         )
