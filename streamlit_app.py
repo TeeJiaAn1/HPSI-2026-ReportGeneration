@@ -105,7 +105,6 @@ class BadmintonReport(FPDF):
             self.cell(col_width, header_height, text, border=1, fill=True, align='C')
 
         self.ln()
-
         self.set_text_color(0, 0, 0)
 
         for row in data:
@@ -132,8 +131,8 @@ class BadmintonReport(FPDF):
 def analyze_match(df, p_name, o_name):
     df = df.copy()
     df['Name'] = df['Name'].astype(str).str.replace(r" \(\d+\)", "", regex=True)
-    relevant = ["Player Serve", "Opponent Serve", "End Rally"] #Removes row suffixes like (1)
-    df = df[df['Name'].isin(relevant)].sort_values('Position').reset_index(drop=True) #Keeps only the player/opoonent serve, end rally and sort by time position
+    relevant = ["Player Serve", "Opponent Serve", "End Rally"]
+    df = df[df['Name'].isin(relevant)].sort_values('Position').reset_index(drop=True)
 
     rallies = []
     current_p_score = 0
@@ -220,15 +219,9 @@ def analyze_match(df, p_name, o_name):
     return rdf
 
 
+# --- FIXED ERROR STATS ---
 def compute_error_stats(rdf):
     err_df = rdf[rdf['Error_Type'].notna()].copy()
-
-    def side_committed_error(row):
-        if row['Winner'] == 'Player':
-            return 'Opponent'
-        elif row['Winner'] == 'Opponent':
-            return 'Player'
-        return None
 
     if err_df.empty:
         return {
@@ -241,7 +234,28 @@ def compute_error_stats(rdf):
             'max_streaks': None
         }
 
-    err_df['Error_Side'] = err_df.apply(side_committed_error, axis=1)
+    def committed_by_side(row):
+        if row['Winner'] == 'Player':
+            return 'Opponent'
+        elif row['Winner'] == 'Opponent':
+            return 'Player'
+        return None
+
+    def forced_by_side(row):
+        if row['Winner'] == 'Player':
+            return 'Player'
+        elif row['Winner'] == 'Opponent':
+            return 'Opponent'
+        return None
+
+    err_df['Committed_By'] = err_df.apply(committed_by_side, axis=1)
+    err_df['Forced_By'] = err_df.apply(forced_by_side, axis=1)
+
+    err_df['Error_Side'] = np.where(
+        err_df['Error_Type'] == 'Forced Error',
+        err_df['Forced_By'],
+        err_df['Committed_By']
+    )
 
     err_counts = err_df.groupby(['Error_Side', 'Error_Type']).size().reset_index(name='Count')
     shot_type_counts = err_df.groupby(['Error_Side', 'Error_Type', 'Shot_Type']).size().reset_index(name='Count')
@@ -258,12 +272,11 @@ def compute_error_stats(rdf):
     crit_counts = err_df[err_df['Is_Critical']].groupby(['Error_Side', 'Error_Type']).size().reset_index(name='Count')
 
     streak_rows = []
+    unforced_df = err_df[err_df['Error_Type'] == 'Unforced Error'].copy()
+
     for side in ['Player', 'Opponent']:
-        side_df = err_df.sort_values(['Set', 'Rally_Num']).copy()
-        side_df['Is_Unforced_By_Side'] = (
-            (side_df['Error_Side'] == side) &
-            (side_df['Error_Type'] == 'Unforced Error')
-        )
+        side_df = unforced_df.sort_values(['Set', 'Rally_Num']).copy()
+        side_df['Is_Unforced_By_Side'] = side_df['Committed_By'] == side
 
         current_streak = 0
         last_set = None
@@ -300,13 +313,15 @@ def compute_error_stats(rdf):
     }
 
 
-def compute_unforced_point_contribution(rdf):
+def compute_point_contribution(rdf):
     if rdf.empty:
         return pd.DataFrame(columns=[
             'Side',
             'Total_Points_Won',
+            'Points_From_Forced_Error',
             'Points_From_Opp_Unforced',
             'Own_Points',
+            'Pct_From_Forced_Error',
             'Pct_From_Opp_Unforced',
             'Pct_Own_Points'
         ])
@@ -319,6 +334,15 @@ def compute_unforced_point_contribution(rdf):
         .rename(columns={'Winner': 'Side'})
     )
 
+    forced_points = (
+        rdf[rdf['Error_Type'] == 'Forced Error']
+        .groupby('Winner')
+        .size()
+        .reindex(['Player', 'Opponent'], fill_value=0)
+        .reset_index(name='Points_From_Forced_Error')
+        .rename(columns={'Winner': 'Side'})
+    )
+
     unforced_points = (
         rdf[rdf['Error_Type'] == 'Unforced Error']
         .groupby('Winner')
@@ -328,9 +352,16 @@ def compute_unforced_point_contribution(rdf):
         .rename(columns={'Winner': 'Side'})
     )
 
-    summary = total_points.merge(unforced_points, on='Side', how='left')
+    summary = total_points.merge(forced_points, on='Side', how='left').merge(unforced_points, on='Side', how='left')
+    summary['Points_From_Forced_Error'] = summary['Points_From_Forced_Error'].fillna(0).astype(int)
     summary['Points_From_Opp_Unforced'] = summary['Points_From_Opp_Unforced'].fillna(0).astype(int)
-    summary['Own_Points'] = summary['Total_Points_Won'] - summary['Points_From_Opp_Unforced']
+    summary['Own_Points'] = summary['Total_Points_Won'] - summary['Points_From_Forced_Error'] - summary['Points_From_Opp_Unforced']
+
+    summary['Pct_From_Forced_Error'] = np.where(
+        summary['Total_Points_Won'] > 0,
+        (summary['Points_From_Forced_Error'] / summary['Total_Points_Won']) * 100,
+        0
+    )
 
     summary['Pct_From_Opp_Unforced'] = np.where(
         summary['Total_Points_Won'] > 0,
@@ -770,8 +801,6 @@ if rdf is not None and not rdf.empty:
 
             error_stats = compute_error_stats(rdf)
             err_counts = error_stats['err_counts']
-            shot_type_counts = error_stats['shot_type_counts']
-            zone_counts = error_stats['zone_counts']
             crit_counts = error_stats['crit_counts']
             max_streaks = error_stats['max_streaks']
 
@@ -809,16 +838,16 @@ if rdf is not None and not rdf.empty:
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Total Points Gained (Forced Errors) and Received (Opponent's Unforced Errors)"), ln=True)
 
-            unforced_contrib = compute_unforced_point_contribution(rdf)
+            point_contrib = compute_point_contribution(rdf)
             contrib_table = []
-            for _, row in unforced_contrib.iterrows():
+            for _, row in point_contrib.iterrows():
                 side_name = p_name if row['Side'] == 'Player' else o_name
                 contrib_table.append([
                     side_name,
                     int(row['Total_Points_Won']),
-                    int(row['Own_Points']),
+                    int(row['Points_From_Forced_Error']),
                     int(row['Points_From_Opp_Unforced']),
-                    f"{row['Pct_Own_Points']:.1f}%",
+                    f"{row['Pct_From_Forced_Error']:.1f}%",
                     f"{row['Pct_From_Opp_Unforced']:.1f}%"
                 ])
 
