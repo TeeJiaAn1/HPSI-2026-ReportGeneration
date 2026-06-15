@@ -1122,5 +1122,3 @@ if rdf is not None and not rdf.empty:
 
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
-else:
-    st.warning("Upload a valid DartFish CSV first.")
