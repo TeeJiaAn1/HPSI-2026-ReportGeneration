@@ -816,7 +816,7 @@ if rdf is not None and not rdf.empty:
 
             table_data = [
                 ["Unforced Error", get_error_count("Player", "Unforced Error"), get_error_count("Opponent", "Unforced Error")],
-                ["Forced Error", get_error_count("Player", "Forced Error"), get_error_count("Opponent", "Forced Error")]
+                ["Winner/Forced Error", get_error_count("Player", "Forced Error"), get_error_count("Opponent", "Forced Error")]
             ]
             pdf.quick_table(["Metric", p_name, o_name], table_data, [50, 55, 55])
 
