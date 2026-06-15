@@ -132,8 +132,8 @@ class BadmintonReport(FPDF):
 def analyze_match(df, p_name, o_name):
     df = df.copy()
     df['Name'] = df['Name'].astype(str).str.replace(r" \(\d+\)", "", regex=True)
-    relevant = ["Player Serve", "Opponent Serve", "End Rally"]
-    df = df[df['Name'].isin(relevant)].sort_values('Position').reset_index(drop=True)
+    relevant = ["Player Serve", "Opponent Serve", "End Rally"] #Removes row suffixes like (1)
+    df = df[df['Name'].isin(relevant)].sort_values('Position').reset_index(drop=True) #Keeps only the player/opoonent serve, end rally and sort by time position
 
     rallies = []
     current_p_score = 0
@@ -439,16 +439,16 @@ def get_streak_spans(err_df):
 
 
 # --- MAIN INTERFACE ---
-st.title("HPSI Badminton Analytics- PDF Report Generation")
+st.title("HPSI Badminton Analytics- PDF Report Generation 2026")
 
 with st.sidebar:
     st.header("Match Metadata")
     event = st.text_input("Event", "YONEX German Open 2026")
-    date_str = st.date_input("Date", datetime(2026, 2, 26))
+    date_str = st.date_input("Date", datetime(2026, 6, 10))
     venue = st.text_input("Venue", "Germany")
     round_m = st.text_input("Round", "R16")
-    p_name = st.text_input("Player Name", "YEO Jia Min")
-    o_name = st.text_input("Opponent Name", "HAN Qian Xi")
+    p_name = st.text_input("Player Name", "LOH Kean Yew (SGP)")
+    o_name = st.text_input("Opponent Name", "CHI Yu Jen (TPE)")
 
     p_is_sgp = contains_sgp(p_name)
     o_is_sgp = contains_sgp(o_name)
@@ -489,8 +489,8 @@ if uploaded_file:
             st.warning("CSV uploaded, but no valid rallies were reconstructed. Check tag names and columns.")
     except Exception as e:
         st.error(f"Failed to read/process CSV: {e}")
-else:
-    st.info("Please upload your DartFish CSV.")
+    else:
+        st.info("Please upload your DartFish CSV.")
 
 if rdf is not None and not rdf.empty:
     if st.button("Generate Full PDF Report"):
