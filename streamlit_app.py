@@ -446,7 +446,7 @@ with st.sidebar:
     event = st.text_input("Event", "YONEX German Open 2026")
     date_str = st.date_input("Date", datetime(2026, 6, 10))
     venue = st.text_input("Venue", "Germany")
-    round_m = st.text_input("Round", "R16")
+    round_m = st.text_input("Round", "R32")
     p_name = st.text_input("Player Name", "LOH Kean Yew (SGP)")
     o_name = st.text_input("Opponent Name", "CHI Yu Jen (TPE)")
 
