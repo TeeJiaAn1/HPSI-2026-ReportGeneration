@@ -469,6 +469,40 @@ def get_streak_spans(err_df):
     return spans
 
 
+def compute_strip_based_max_unforced_streaks(rdf):
+    results = {'Player': 0, 'Opponent': 0}
+
+    if rdf.empty:
+        return results
+
+    for focus_side in ['Player', 'Opponent']:
+        side_max = 0
+
+        for s_name in rdf['Set'].unique():
+            s_df = rdf[rdf['Set'] == s_name].copy().sort_values('Start_Pos')
+
+            if s_df.empty:
+                continue
+
+            set_start_ms = s_df['Start_Pos'].min()
+            s_df['End_Rel'] = (s_df['End_Pos'] - set_start_ms) / 1000
+
+            err_df = build_focus_error_events(s_df, focus_side)
+
+            if err_df.empty:
+                continue
+
+            grouped = err_df.groupby('streak_group')
+
+            for _, grp in grouped:
+                if grp['error_kind'].iloc[0] == 'Unforced Error':
+                    side_max = max(side_max, len(grp))
+
+        results[focus_side] = side_max
+
+    return results
+
+
 # --- MAIN INTERFACE ---
 st.title("HPSI Badminton Analytics- PDF Report Generation 2026")
 
@@ -636,7 +670,6 @@ if rdf is not None and not rdf.empty:
                 o_wins = len(subset[subset['Winner'] == 'Opponent'])
                 p_pct = (p_wins / total) * 100
                 o_pct = (o_wins / total) * 100
-
                 return (
                     f"{side_name} Serves: {total}\n"
                     f"- {p_pct:.0f}% ({p_wins}) won by {p_name}\n"
@@ -802,7 +835,6 @@ if rdf is not None and not rdf.empty:
             error_stats = compute_error_stats(rdf)
             err_counts = error_stats['err_counts']
             crit_counts = error_stats['crit_counts']
-            max_streaks = error_stats['max_streaks']
 
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Error Type, Player, Opponent"), ln=True)
@@ -860,10 +892,7 @@ if rdf is not None and not rdf.empty:
             pdf.set_font("Arial", 'B', 11)
             pdf.cell(0, 8, safe_pdf_text("Longest Streaks of Consecutive Unforced Errors"), ln=True)
 
-            streak_map = {'Player': 0, 'Opponent': 0}
-            if max_streaks is not None and not max_streaks.empty:
-                for _, row in max_streaks.iterrows():
-                    streak_map[row['Side']] = int(row['Streak_Length'])
+            streak_map = compute_strip_based_max_unforced_streaks(rdf)
 
             streak_table = [
                 [p_name, streak_map['Player']],
